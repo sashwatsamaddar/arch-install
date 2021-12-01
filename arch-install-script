@@ -1,0 +1,95 @@
+# My Arch Installation
+
+# Connect to WiFi
+iwctl help
+
+# Sync system clock
+timedatectl set-ntp true
+	## Check status
+	timedatectl status
+
+# Partition disk
+parted /dev/sdc
+mktable gpt
+mkpart "EFI System Partition" fat32 1MB 1GB
+mkpart "Root Partition" ext4 1GB 41GB
+mkpart "Home Partition" ext4 41GB 108GB
+mkpart "Swap Partition" linux-swap 108GB 100%
+	## Set esp and swap flags
+	set 1 esp on
+	set 4 swap on
+	## Check partitions
+	print
+	quit
+
+# Format partitions
+mkfs.fat -F 32 /dev/sdc1
+mkfs.ext4 /dev/sdc2
+mkfs.ext4 /dev/sdc3
+mkswap /dev/sdc4
+
+# Mount Partitions
+mount /dev/sdc2 /mnt
+mkdir /mnt/efi /mnt/home
+mount /dev/sdc1 /mnt/efi
+mount /dev/sdc3 /mnt/home
+swapon /dev/sdc4
+
+# Edit /etc/pacman.conf for parallel downloads
+vim /etc/pacman.conf
+
+# Install base, linux, linux-firmware and additional packages
+pacstrap /mnt base base-devel linux linux-firmware sudo vim grub efibootmgr networkmanager
+
+# Generate Filesystem Table
+genfstab /mnt > /mnt/etc/fstab
+	## Verify FileSystem Table
+	cat /mnt/etc/fstab
+
+# "chroot" into new system
+arch-chroot /mnt
+
+# Set timezone
+timedatectl set-timezone Asia/Calcutta
+ln -sf /usr/share/zoneinfo/Asia/Calcutta /etc/localtime
+hwclock --systohc
+
+# Set locale
+	## Edit /etc/locale.gen and uncomment appropriate locale
+	vim /etc/locale.gen
+	## Run locale-gen
+	locale-gen
+	## Create /etc/locale.conf
+	echo "LANG=en_US.UTF-8" > /etc/locale.conf
+
+# Create /etc/hostname
+echo msiarch > /etc/hostname
+
+# Configure grub
+	## Install grub
+	grub-install --target=x86_64-efi --efi-directory=/efi --bootloader-id=GRUB --removable --recheck
+	## Generate grub configuration
+	grub-mkconfig -o /boot/grub/grub.cfg
+
+# Create root password
+passwd
+
+# Edit sudo config
+visudo
+
+# Add user
+useradd -mG wheel sashwat
+	## Set user password
+	passwd sashwat
+
+# Enable Network Manager service
+systemctl enable NetworkManager.service
+
+# Reboot into new system
+	## Exit chroot
+	exit
+	## Unmount disk
+	umount -R /mnt
+	## Reboot
+	reboot
+
